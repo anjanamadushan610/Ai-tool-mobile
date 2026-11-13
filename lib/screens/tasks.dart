@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../attach.dart';
 import '../i18n.dart';
 import '../push.dart';
 import '../state.dart';
@@ -83,6 +84,7 @@ class NewTaskCard extends StatefulWidget {
 
 class _NewTaskCardState extends State<NewTaskCard> {
   final _prompt = TextEditingController();
+  final _attach = Attachments();
   String? _repo;
   bool _busy = false;
 
@@ -91,8 +93,9 @@ class _NewTaskCardState extends State<NewTaskCard> {
     if (_repo == null || _prompt.text.trim().isEmpty) return;
     setState(() => _busy = true);
     try {
-      final t = await s.api.post('/tasks', {'repo': _repo, 'prompt': _prompt.text});
+      final t = await s.api.post('/tasks', {'repo': _repo, 'prompt': _prompt.text, 'attachments': _attach.ids});
       _prompt.clear();
+      _attach.clear();
       if (mounted) openTask(context, t['id'] as int);
     } catch (e) {
       if (mounted) toast(context, e);
@@ -125,7 +128,7 @@ class _NewTaskCardState extends State<NewTaskCard> {
             maxLines: 8,
             decoration: InputDecoration(labelText: tr(context, 'prompt')),
           ),
-          const SizedBox(height: 8),
+          AttachRow(attachments: _attach),
           FilledButton.icon(
             onPressed: _busy ? null : _start,
             icon: const Icon(Icons.rocket_launch_outlined),

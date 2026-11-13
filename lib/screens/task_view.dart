@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../attach.dart';
 import '../i18n.dart';
 import '../state.dart';
 import '../util.dart';
@@ -39,6 +40,7 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
   Timer? _timer;
   final _text = TextEditingController();
   final _scroll = ScrollController();
+  final _attach = Attachments();
   bool _busy = false;
 
   @override
@@ -89,8 +91,9 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
     if (_text.text.trim().isEmpty) return;
     setState(() => _busy = true);
     try {
-      await AppScope.read(context).api.post('/tasks/${widget.id}/messages', {'prompt': _text.text});
+      await AppScope.read(context).api.post('/tasks/${widget.id}/messages', {'prompt': _text.text, 'attachments': _attach.ids});
       _text.clear();
+      _attach.clear();
       _timer?.cancel();
       _tick();
     } catch (e) {
@@ -127,6 +130,11 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
         return Text('${d['message']}', style: TextStyle(color: theme.colorScheme.error));
       case 'approval':
         return Text('${d['status']} · ${d['tool']}${d['by'] != null ? ' · ${d['by']}' : ''}', style: theme.textTheme.bodySmall);
+      case 'git':
+        return Text(
+          '${d['ok'] == true ? (d['pushed'] == true ? 'pushed' : 'committed') : 'git failed'} · ${d['branch']} · ${d['files']} file(s) · “${d['message']}” · ${d['by']}',
+          style: theme.textTheme.bodySmall?.copyWith(color: d['ok'] == true ? Colors.green : theme.colorScheme.error),
+        );
     }
     if (d['type'] == 'assistant') {
       final parts = ((d['message'] as Map?)?['content'] as List?) ?? const [];
@@ -228,7 +236,9 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
                 top: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-                  child: Row(children: [
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    AttachRow(attachments: _attach, enabled: !active),
+                    Row(children: [
                     Expanded(
                       child: TextField(
                         controller: _text,
@@ -239,11 +249,12 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
                       ),
                     ),
                     IconButton.filled(onPressed: active || _busy ? null : _send, icon: const Icon(Icons.send)),
+                    ]),
                   ]),
                 ),
               ),
           ]),
-          _DiffView(id: widget.id),
+          _DiffView(id: widget.id, active: active, canPush: mine && s.can('git.push_staff')),
         ]),
       ),
     );
@@ -251,8 +262,10 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
 }
 
 class _DiffView extends StatefulWidget {
-  const _DiffView({required this.id});
+  const _DiffView({required this.id, required this.active, required this.canPush});
   final int id;
+  final bool active;
+  final bool canPush;
 
   @override
   State<_DiffView> createState() => _DiffViewState();
@@ -260,16 +273,99 @@ class _DiffView extends StatefulWidget {
 
 class _DiffViewState extends State<_DiffView> {
   Map<String, dynamic>? _d;
+  Map<String, dynamic>? _git;
+  Set<String> _picked = {};
+  final _msg = TextEditingController();
+  bool _busy = false;
   String? _err;
+  String? _gitOut;
 
   @override
   void initState() {
     super.initState();
-    AppScope.read(context).api.get('/tasks/${widget.id}/diff').then((r) {
-      if (mounted) setState(() => _d = Map<String, dynamic>.from(r));
-    }).catchError((Object e) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final api = AppScope.read(context).api;
+    try {
+      final d = Map<String, dynamic>.from(await api.get('/tasks/${widget.id}/diff'));
+      final g = Map<String, dynamic>.from(await api.get('/tasks/${widget.id}/git'));
+      if (!mounted) return;
+      setState(() {
+        _d = d;
+        _git = g;
+        _picked = {for (final f in (g['files'] as List)) '${f['path']}'};
+      });
+    } catch (e) {
       if (mounted) setState(() => _err = e.toString());
+    }
+  }
+
+  Future<void> _commit(bool push) async {
+    setState(() {
+      _busy = true;
+      _gitOut = null;
     });
+    try {
+      final r = await AppScope.read(context).api.post('/tasks/${widget.id}/commit',
+          {'message': _msg.text, 'files': _picked.toList(), 'push': push});
+      if (!mounted) return;
+      if (r['ok'] == true) {
+        toast(context, push ? '${tr(context, 'pushedTo')} ${r['branch']}' : tr(context, 'committed'));
+        _msg.clear();
+      } else {
+        setState(() => _gitOut = [for (final s in (r['steps'] as List)) '\$ git ${s['step']}\n${s['output']}'].join('\n'));
+      }
+      _load();
+    } catch (e) {
+      if (mounted) toast(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _commitPanel() {
+    final g = _git!;
+    final files = (g['files'] as List);
+    final branch = '${g['branch']}';
+    final protectedBranch = branch == 'main' || branch == 'master';
+    final ready = _msg.text.trim().isNotEmpty && _picked.isNotEmpty && !_busy;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('${tr(context, 'commit')} · $branch${g['ahead'] != null && g['ahead'] > 0 ? ' · ${g['ahead']} not pushed' : ''}',
+              style: Theme.of(context).textTheme.titleSmall),
+          if (protectedBranch) Text(tr(context, 'mainBlocked'), style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          if (files.isEmpty) Text(tr(context, 'nothingToCommit')),
+          for (final f in files)
+            CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              value: _picked.contains('${f['path']}'),
+              onChanged: (v) => setState(() => v == true ? _picked.add('${f['path']}') : _picked.remove('${f['path']}')),
+              title: Text('${f['status']}  ${f['path']}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+            ),
+          if (widget.canPush && !protectedBranch && files.isNotEmpty) ...[
+            TextField(
+              controller: _msg,
+              onChanged: (_) => setState(() {}),
+              minLines: 1,
+              maxLines: 4,
+              decoration: InputDecoration(labelText: tr(context, 'commitMessage')),
+            ),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, children: [
+              OutlinedButton(onPressed: ready ? () => _commit(false) : null, child: Text(tr(context, 'commit'))),
+              FilledButton(onPressed: ready ? () => _commit(true) : null, child: Text('${tr(context, 'commitPush')} → $branch')),
+            ]),
+          ],
+          if (_gitOut != null)
+            SelectableText(_gitOut!, style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),
+        ]),
+      ),
+    );
   }
 
   @override
@@ -279,6 +375,7 @@ class _DiffViewState extends State<_DiffView> {
     final diff = '${_d!['diff']}';
     if (diff.isEmpty && '${_d!['status']}'.trim().isEmpty) return Center(child: Text(tr(context, 'noChanges')));
     return ListView(padding: const EdgeInsets.all(12), children: [
+      if (!widget.active && _git != null) _commitPanel(),
       SelectableText('${_d!['status']}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
       const Divider(),
       for (final l in diff.split('\n'))

@@ -74,6 +74,14 @@ const _en = <String, String>{
   'audit': 'Audit',
   'loadOlder': 'Load older',
   'noAudit': 'Nothing recorded yet',
+  'attach': 'Attach image',
+  'commit': 'Commit',
+  'commitPush': 'Commit + push',
+  'commitMessage': 'Commit message',
+  'nothingToCommit': 'Nothing to commit.',
+  'mainBlocked': 'This branch is never committed to from the app. Switch to development in VS Code.',
+  'pushedTo': 'Pushed to',
+  'committed': 'Committed',
 };
 
 const _si = <String, String>{
@@ -147,6 +155,14 @@ const _si = <String, String>{
   'audit': 'වාර්තාව',
   'loadOlder': 'පරණ ඒවා පෙන්වන්න',
   'noAudit': 'තවම කිසිවක් සටහන් වී නැත',
+  'attach': 'රූපයක් අමුණන්න',
+  'commit': 'Commit කරන්න',
+  'commitPush': 'Commit + push',
+  'commitMessage': 'Commit පණිවිඩය',
+  'nothingToCommit': 'Commit කිරීමට කිසිවක් නැත.',
+  'mainBlocked': 'මෙම branch එකට app එකෙන් commit කළ නොහැක. VS Code හි development වෙත මාරු වන්න.',
+  'pushedTo': 'Push කළා:',
+  'committed': 'Commit කළා',
 };
 
 String tr(BuildContext context, String key) {
