@@ -65,7 +65,15 @@ jobs:
           V=$(grep '^version:' pubspec.yaml | awk '{print $2}')
           echo "version=$V" >> "$GITHUB_OUTPUT"
           cp build/app/outputs/flutter-apk/app-release.apk "SriBees-AI-$V.apk"
-          keytool -printcert -jarfile "SriBees-AI-$V.apk" | grep -m1 SHA256
+          # The APK is v2-signed, so keytool -jarfile sees nothing; apksigner reads it.
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          CERT=$("$BT/apksigner" verify --print-certs "SriBees-AI-$V.apk" | grep -m1 'SHA-256 digest' | awk '{print $NF}')
+          echo "APK signer SHA-256: $CERT"
+          # Public fingerprint of the release key (Ai tool/secrets.out/android-signing). Anything else = wrong key.
+          if [ "$CERT" != "0be72e9cb189eb5e6730aff1a2585d5abd1f01bf2b4d55d71f2643a4113ae06e" ]; then
+            echo "::error::APK is not signed with the SriBees AI release key."
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
