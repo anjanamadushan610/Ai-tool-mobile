@@ -8,6 +8,7 @@ import '../attach.dart';
 import '../i18n.dart';
 import '../state.dart';
 import '../util.dart';
+import '../voice.dart';
 
 const _active = {'queued', 'running'};
 
@@ -251,6 +252,7 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
                         decoration: InputDecoration(hintText: tr(context, active ? 'stillWorking' : 'followUp'), border: const OutlineInputBorder()),
                       ),
                     ),
+                    MicButton(controller: _text, enabled: !active),
                     IconButton.filled(onPressed: active || _busy ? null : _send, icon: const Icon(Icons.send)),
                     ]),
                   ]),

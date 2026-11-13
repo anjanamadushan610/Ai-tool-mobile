@@ -7,6 +7,7 @@ import '../i18n.dart';
 import '../push.dart';
 import '../state.dart';
 import '../util.dart';
+import '../voice.dart';
 import 'task_view.dart';
 
 const ownerFolders = [
@@ -126,7 +127,7 @@ class _NewTaskCardState extends State<NewTaskCard> {
             controller: _prompt,
             minLines: 2,
             maxLines: 8,
-            decoration: InputDecoration(labelText: tr(context, 'prompt')),
+            decoration: InputDecoration(labelText: tr(context, 'prompt'), suffixIcon: MicButton(controller: _prompt)),
           ),
           AttachRow(attachments: _attach),
           FilledButton.icon(

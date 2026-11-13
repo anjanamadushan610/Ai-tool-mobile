@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../i18n.dart';
 import '../state.dart';
 import '../util.dart';
+import 'report.dart';
 
 class ServerScreen extends StatefulWidget {
   const ServerScreen({super.key});
@@ -17,6 +18,7 @@ class _ServerScreenState extends State<ServerScreen> {
   Map<String, dynamic>? _ov;
   List<dynamic> _hist = [];
   List<dynamic> _cont = [];
+  Map<String, dynamic>? _report;
   String? _err;
   Timer? _timer;
 
@@ -46,6 +48,8 @@ class _ServerScreenState extends State<ServerScreen> {
       });
       final c = await api.get('/admin/containers');
       if (mounted) setState(() => _cont = c as List);
+      final reps = (await api.get('/admin/reports?limit=1')) as List;
+      if (mounted) setState(() => _report = reps.isEmpty ? null : Map<String, dynamic>.from(reps.first));
     } catch (e) {
       if (mounted) setState(() => _err = e.toString());
     }
@@ -70,6 +74,18 @@ class _ServerScreenState extends State<ServerScreen> {
       onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(12), children: [
         if (_err != null) Text(_err!, style: TextStyle(color: cs.error)),
+        if (_report != null)
+          ReportCard(
+            report: _report!,
+            compact: true,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReportScreen())),
+          )
+        else
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReportScreen())),
+            icon: const Icon(Icons.wb_sunny_outlined),
+            label: Text(tr(context, 'morningReport')),
+          ),
         if (host != null)
           GridView.count(
             crossAxisCount: 2,

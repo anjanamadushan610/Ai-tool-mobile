@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'screens/report.dart';
 import 'screens/task_view.dart';
 import 'state.dart';
 
@@ -41,18 +42,25 @@ class Push {
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(_channel.id, _channel.name, importance: Importance.high, priority: Priority.high),
         ),
-        payload: m.data['task_id'],
+        payload: _target(m.data),
       );
     });
-    FirebaseMessaging.onMessageOpenedApp.listen((m) => _open(m.data['task_id']));
+    FirebaseMessaging.onMessageOpenedApp.listen((m) => _open(_target(m.data)));
     final first = await FirebaseMessaging.instance.getInitialMessage();
     if (first != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _open(first.data['task_id']));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _open(_target(first.data)));
     }
   }
 
-  static void _open(String? taskId) {
-    final id = int.tryParse(taskId ?? '');
+  /// "report" for the morning report, otherwise the task id (alerts open nothing special).
+  static String? _target(Map<String, dynamic> data) => data['kind'] == 'report' ? 'report' : data['task_id'] as String?;
+
+  static void _open(String? target) {
+    if (target == 'report') {
+      _nav?.currentState?.push(MaterialPageRoute(builder: (_) => const ReportScreen()));
+      return;
+    }
+    final id = int.tryParse(target ?? '');
     if (id == null) return;
     _nav?.currentState?.push(MaterialPageRoute(builder: (_) => TaskViewScreen(id: id)));
   }

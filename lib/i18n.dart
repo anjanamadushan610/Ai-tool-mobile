@@ -82,6 +82,14 @@ const _en = <String, String>{
   'mainBlocked': 'This branch is never committed to from the app. Switch to development in VS Code.',
   'pushedTo': 'Pushed to',
   'committed': 'Committed',
+  'morningReport': 'Morning report',
+  'sendNow': 'Send now',
+  'noReports': 'The first report arrives tomorrow at 8:00.',
+  'allUp': 'All services up',
+  'servicesFailed': 'service(s) had failures',
+  'failedChecks': 'failed checks',
+  'failed': 'Failed',
+  'failedLogins': 'failed logins',
 };
 
 const _si = <String, String>{
@@ -163,6 +171,14 @@ const _si = <String, String>{
   'mainBlocked': 'මෙම branch එකට app එකෙන් commit කළ නොහැක. VS Code හි development වෙත මාරු වන්න.',
   'pushedTo': 'Push කළා:',
   'committed': 'Commit කළා',
+  'morningReport': 'උදේ වාර්තාව',
+  'sendNow': 'දැන් යවන්න',
+  'noReports': 'පළමු වාර්තාව හෙට උදේ 8:00ට එයි.',
+  'allUp': 'සියලු සේවා ක්‍රියාත්මකයි',
+  'servicesFailed': 'සේවා වල දෝෂ තිබුණා',
+  'failedChecks': 'අසාර්ථක පරීක්ෂා',
+  'failed': 'අසාර්ථක',
+  'failedLogins': 'වැරදි login උත්සාහ',
 };
 
 String tr(BuildContext context, String key) {
