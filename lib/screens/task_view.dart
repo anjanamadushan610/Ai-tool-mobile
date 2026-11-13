@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../attach.dart';
 import '../i18n.dart';
@@ -130,6 +131,8 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
         return Text('${d['message']}', style: TextStyle(color: theme.colorScheme.error));
       case 'approval':
         return Text('${d['status']} · ${d['tool']}${d['by'] != null ? ' · ${d['by']}' : ''}', style: theme.textTheme.bodySmall);
+      case 'ci':
+        return Text('dev deploy · ${d['workflow']} on development · ${d['repo']} · ${d['by']}', style: theme.textTheme.bodySmall);
       case 'git':
         return Text(
           '${d['ok'] == true ? (d['pushed'] == true ? 'pushed' : 'committed') : 'git failed'} · ${d['branch']} · ${d['files']} file(s) · “${d['message']}” · ${d['by']}',
@@ -141,7 +144,7 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         for (final c in parts)
           if (c['type'] == 'text')
-            SelectableText('${c['text']}')
+            MarkdownBody(data: '${c['text']}', selectable: true, softLineBreak: true)
           else if (c['type'] == 'tool_use')
             Container(
               margin: const EdgeInsets.symmetric(vertical: 2),
@@ -186,7 +189,7 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
     final mine = t['username'] == s.me?['username'] || s.isOwner;
     final pending = (t['pending_approvals'] as List?) ?? const [];
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text(t['title'] as String, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -194,7 +197,7 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
             Center(child: statusChip(t['status'] as String)),
             if (active && mine) IconButton(onPressed: _stop, icon: const Icon(Icons.stop_circle_outlined), tooltip: tr(context, 'stop')),
           ],
-          bottom: TabBar(tabs: [Tab(text: tr(context, 'conversation')), Tab(text: tr(context, 'changes'))]),
+          bottom: TabBar(tabs: [Tab(text: tr(context, 'conversation')), Tab(text: tr(context, 'changes')), const Tab(text: 'CI')]),
         ),
         body: TabBarView(children: [
           Column(children: [
@@ -255,6 +258,7 @@ class _TaskViewScreenState extends State<TaskViewScreen> {
               ),
           ]),
           _DiffView(id: widget.id, active: active, canPush: mine && s.can('git.push_staff')),
+          _CiView(id: widget.id),
         ]),
       ),
     );
@@ -385,5 +389,101 @@ class _DiffViewState extends State<_DiffView> {
           color: l.startsWith('+') && !l.startsWith('+++') ? Colors.green.shade700 : l.startsWith('-') && !l.startsWith('---') ? Colors.red.shade700 : null,
         )),
     ]);
+  }
+}
+
+/// Recent GitHub Actions runs for this task's repo + branch; the owner may start an allow-listed DEV workflow.
+class _CiView extends StatefulWidget {
+  const _CiView({required this.id});
+  final int id;
+
+  @override
+  State<_CiView> createState() => _CiViewState();
+}
+
+class _CiViewState extends State<_CiView> {
+  Map<String, dynamic>? _d;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _timer = Timer.periodic(const Duration(seconds: 15), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = await AppScope.read(context).api.get('/tasks/${widget.id}/ci');
+      if (mounted) setState(() => _d = Map<String, dynamic>.from(r));
+    } catch (e) {
+      if (mounted) setState(() => _d = {'repo': null, 'error': e.toString()});
+    }
+  }
+
+  Future<void> _deploy(String wf) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('Start $wf on development?'),
+        content: Text('${_d!['repo']}\nDEV environment only. Production is never started from the app.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(tr(context, 'cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(tr(context, 'start'))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await AppScope.read(context).api.post('/tasks/${widget.id}/deploy-dev', {'workflow': wf});
+      if (mounted) toast(context, '$wf started');
+      Future.delayed(const Duration(seconds: 4), _load);
+    } catch (e) {
+      if (mounted) toast(context, e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = _d;
+    if (d == null) return const Center(child: CircularProgressIndicator());
+    if (d['repo'] == null) return Center(child: Text('${d['error'] ?? 'No GitHub remote here.'}'));
+    final runs = (d['runs'] as List?) ?? const [];
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(padding: const EdgeInsets.all(12), children: [
+        Text('${d['repo']} · ${d['branch']}', style: Theme.of(context).textTheme.titleSmall),
+        Wrap(spacing: 8, children: [
+          for (final wf in (d['deployable'] as List? ?? const []))
+            FilledButton.tonal(onPressed: () => _deploy('$wf'), child: Text('Deploy to dev: $wf')),
+        ]),
+        if (d['error'] != null) Text('${d['error']}', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        for (final r in runs)
+          ListTile(
+            dense: true,
+            leading: Icon(
+              r['status'] != 'completed'
+                  ? Icons.timelapse
+                  : r['conclusion'] == 'success'
+                      ? Icons.check_circle
+                      : Icons.cancel,
+              color: r['status'] != 'completed'
+                  ? Colors.blue
+                  : r['conclusion'] == 'success'
+                      ? Colors.green
+                      : Colors.red,
+            ),
+            title: Text('${r['name']}'),
+            subtitle: Text('${r['status'] != 'completed' ? r['status'] : r['conclusion']} · ${r['sha']} · ${r['event']} · ${fmt(r['created_at'] as String)}'),
+          ),
+        if (runs.isEmpty && d['error'] == null) const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No runs on this branch yet.'))),
+      ]),
+    );
   }
 }
