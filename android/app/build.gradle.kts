@@ -19,7 +19,9 @@ val keyProps = Properties().apply {
 
 android {
     namespace = "com.sribeesonline.sribees_ai"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_local_notifications 23 and androidx.core 1.19 need API 37 to COMPILE against.
+    // targetSdk/minSdk stay Flutter's defaults, so which phones can install it does not change.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

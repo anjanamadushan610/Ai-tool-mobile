@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../i18n.dart';
 import '../state.dart';
 import 'account.dart';
+import 'audit.dart';
 import 'server.dart';
 import 'tasks.dart';
 import 'users.dart';
@@ -24,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ('tasks', Icons.code, const TasksScreen()),
       if (s.can('admin.metrics')) ('server', Icons.monitor_heart_outlined, const ServerScreen()),
       if (s.can('admin.users')) ('users', Icons.group_outlined, const UsersScreen()),
+      if (s.can('audit.view_all') || s.can('audit.view_own')) ('audit', Icons.receipt_long_outlined, const AuditScreen()),
       ('account', Icons.person_outline, const AccountScreen()),
     ];
     final i = _tab.clamp(0, tabs.length - 1);

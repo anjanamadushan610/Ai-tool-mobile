@@ -71,6 +71,9 @@ const _en = <String, String>{
   'signOutDevice': 'Sign out',
   'retry': 'Retry',
   'freeOf': 'free of',
+  'audit': 'Audit',
+  'loadOlder': 'Load older',
+  'noAudit': 'Nothing recorded yet',
 };
 
 const _si = <String, String>{
@@ -141,6 +144,9 @@ const _si = <String, String>{
   'signOutDevice': 'ඉවත් කරන්න',
   'retry': 'නැවත උත්සාහ කරන්න',
   'freeOf': 'නිදහස් /',
+  'audit': 'වාර්තාව',
+  'loadOlder': 'පරණ ඒවා පෙන්වන්න',
+  'noAudit': 'තවම කිසිවක් සටහන් වී නැත',
 };
 
 String tr(BuildContext context, String key) {
