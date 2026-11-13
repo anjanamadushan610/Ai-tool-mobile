@@ -1,0 +1,75 @@
+name: Build SriBees AI APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check signing + Firebase secrets
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          # A release signed with a runner's random debug key cannot update an installed app, so stop here instead.
+          if [ -z "$KS" ] || [ -z "$GS" ]; then
+            echo "::error::Repo secrets ANDROID_KEYSTORE_BASE64 / GOOGLE_SERVICES_JSON are missing."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Flutter (pinned, same as the Price app)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+
+      - name: Write keystore, key.properties and google-services.json
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$KS" | base64 -d > android/sribees-ai-release.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=sribees-ai-release.jks\n' \
+            "$KS_PASS" "$KEY_PASS" "$KEY_ALIAS" > android/key.properties
+          printf '%s' "$GS" > android/app/google-services.json
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Name the APK after the version (pubspec == APK == My account screen)
+        id: v
+        run: |
+          V=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          cp build/app/outputs/flutter-apk/app-release.apk "SriBees-AI-$V.apk"
+          keytool -printcert -jarfile "SriBees-AI-$V.apk" | grep -m1 SHA256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SriBees-AI-${{ steps.v.outputs.version }}
+          path: SriBees-AI-*.apk
+          if-no-files-found: error
+          retention-days: 30
