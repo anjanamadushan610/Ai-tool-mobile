@@ -32,6 +32,7 @@ const statusColors = {
   'done': Colors.green,
   'failed': Colors.red,
   'stopped': Colors.orange,
+  'interrupted': Colors.purple,
 };
 
 Widget statusChip(String status) => Chip(
